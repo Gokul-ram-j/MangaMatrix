@@ -1,81 +1,126 @@
-import { useState } from "react";
-import { Button, Text, TextInput, View, StyleSheet, Image,SafeAreaView } from "react-native";
+import React, { useState } from "react";
+import { 
+  View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, StyleSheet 
+} from "react-native";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, firestore as db } from "./firebase";
-import { doc, setDoc } from "firebase/firestore";
-
-// const logoImg = require("../../assets/logo.png");
+import { auth } from "../auth/firebase"; // Ensure the path is correct
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Function to create user document
-  const createUserDocument = async (userId, userDetails) => {
-    try {
-      const userDocRef = doc(db, "userDetails", userId);
-      await setDoc(userDocRef, userDetails);
-      console.log("User document created successfully!");
-    } catch (error) {
-      console.error("Error creating user document:", error);
+  const handleSignUp = async () => {
+    if (!email || !password || !confirmPassword) {
+      Alert.alert("Error", "All fields are required!");
+      return;
     }
-  };
-  // handling register
-  const handleRegister = () => {
-    setError("");
-    createUserWithEmailAndPassword(auth, email, password)
-      .then((userCredential) => {
-        const user = userCredential.user;
-        createUserDocument(user.email,{community:"",userData:{name:"guest",dob:"N/A",gender:"N/A",profession:"N/A",address:""}});
-      })
-      .catch((error) => {
-        setError(error.message);
-      });
-  };
 
-  const goToLogin = () => {
-    navigation.navigate("Login");
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      Alert.alert("Success", "Account created successfully! 🎉");
+      navigation.navigate("LoginScreen");
+    } catch (error) {
+      Alert.alert("Error", error.message);
+    }
+    setLoading(false);
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      {/* <Image source={logoImg} style={{ width: 300, height: 100 }} /> */}
-      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center" }}>
-        Welcome! Create your account.
-      </Text>
-      <Text style={{ fontSize: 20, fontWeight: "bold", marginVertical: 5 }}>
-        Register
-      </Text>
-      <TextInput
-        onChangeText={setEmail}
-        placeholder="Email"
-        style={styles.textInput}
-      />
-      <TextInput
-        onChangeText={setPassword}
-        placeholder="Password"
-        secureTextEntry
-        style={styles.textInput}
-      />
-      <View style={{ width: 250 }}>
-        <Button title="Register" onPress={handleRegister} />
+    <LinearGradient colors={["#141E30", "#243B55"]} style={styles.container}>
+      <View style={styles.innerContainer}>
+        <Text style={styles.title}>Sign Up</Text>
+        
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#ccc"
+          value={email}
+          onChangeText={setEmail}
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#ccc"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm Password"
+          placeholderTextColor="#ccc"
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+        />
+
+        <TouchableOpacity style={styles.button} onPress={handleSignUp}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign Up</Text>}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate("LoginScreen")}>
+          <Text style={styles.link}>Already have an account? Login</Text>
+        </TouchableOpacity>
       </View>
-      {error && <Text style={{ color: "red" }}>{error}</Text>}
-      <Text onPress={goToLogin} style={{ marginVertical: 10 }}>
-        Already have an account?{" "}
-        <Text style={{ color: "rgb(0, 123, 255)" }}>Login here</Text>
-      </Text>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  textInput: {
-    borderWidth: 1,
-    borderColor: "gray",
-    width: 250,
-    marginVertical: 10,
-    paddingHorizontal: 8,
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  innerContainer: {
+    width: "90%",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    padding: 20,
+    borderRadius: 15,
+    alignItems: "center",
+    backdropFilter: "blur(10px)",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 20,
+  },
+  input: {
+    width: "100%",
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 15,
+    color: "#fff",
+    marginBottom: 15,
+  },
+  button: {
+    width: "100%",
+    backgroundColor: "#00ADB5",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  link: {
+    color: "#00ADB5",
+    marginTop: 15,
   },
 });
