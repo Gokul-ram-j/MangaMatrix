@@ -12,24 +12,47 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import storeData from "../searchDataStore/storeData"; // Ensure correct import
 
 export default function Anime() {
   const [query, setQuery] = useState("");
   const [animeList, setAnimeList] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Function to fetch anime (Search or Trending)
-  const fetchAnime = async () => {
+  // Function to fetch trending anime
+  const fetchTrendingAnime = async () => {
     setLoading(true);
     try {
-      const endpoint = query.trim()
-        ? `https://api.jikan.moe/v4/anime?q=${query}&sfw`
-        : `https://api.jikan.moe/v4/top/anime`;
+      const response = await fetch("https://api.jikan.moe/v4/top/anime");
+      const data = await response.json();
+      setAnimeList(data.data || []); // Store trending anime or empty array
+    } catch (error) {
+      console.error("Error fetching trending anime:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const response = await fetch(endpoint);
+  // Function to fetch searched anime
+  const fetchAnime = async () => {
+    if (!query.trim()) return; // Prevent empty searches
+
+    setLoading(true);
+    setAnimeList([]); // Clear previous results
+
+    try {
+      // Store search data in Firebase
+      storeData({
+        db: "AnimeSearches",
+        dataSearched: query,
+        timeOfSearch: new Date().toISOString().slice(0, 16).replace("T", " "),
+        action: "searched",
+      });
+
+      const response = await fetch(`https://api.jikan.moe/v4/anime?q=${query}&sfw`);
       const data = await response.json();
 
-      setAnimeList(data.data || []); // Store anime list or empty array if no results
+      setAnimeList(data.data || []); // Store search results
     } catch (error) {
       console.error("Error fetching anime:", error);
     } finally {
@@ -37,9 +60,9 @@ export default function Anime() {
     }
   };
 
-  // Fetch trending anime when the component mounts
+  // Fetch trending anime on mount
   useEffect(() => {
-    fetchAnime();
+    fetchTrendingAnime();
   }, []);
 
   return (
@@ -60,24 +83,15 @@ export default function Anime() {
         </View>
 
         {/* Loading Indicator */}
-        {loading && (
-          <ActivityIndicator
-            size="large"
-            color="#FF6F61"
-            style={{ marginTop: 20 }}
-          />
-        )}
+        {loading && <ActivityIndicator size="large" color="#FF6F61" style={{ marginTop: 20 }} />}
 
         {/* Anime List */}
         <FlatList
           data={animeList}
-          keyExtractor={(item, index) => `${item.mal_id}_${index}`} // Ensure unique keys
+          keyExtractor={(item, index) => `${item.mal_id}_${index}`} // Unique keys
           renderItem={({ item }) => (
             <View style={styles.animeBox}>
-              <Image
-                source={{ uri: item.images.jpg.image_url }}
-                style={styles.thumbnail}
-              />
+              <Image source={{ uri: item.images.jpg.image_url }} style={styles.thumbnail} />
               <View style={styles.info}>
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.genre}>
@@ -98,10 +112,9 @@ export default function Anime() {
 // Styles
 const styles = StyleSheet.create({
   safeContainer: {
-    paddingTop:40,
     flex: 1,
     backgroundColor: "#222",
-    paddingTop: Platform.OS === "ios" ? 50 : 20, // Ensures it stays within Safe Area
+    paddingTop: Platform.OS === "ios" ? 50 : 20, // Safe Area handling
   },
   container: {
     flex: 1,

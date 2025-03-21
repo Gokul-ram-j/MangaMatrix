@@ -5,34 +5,53 @@ import {
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../auth/firebase"; // Ensure the path is correct
 import { LinearGradient } from "expo-linear-gradient";
-
+import { collection, doc, setDoc } from "firebase/firestore";
+import { firestore } from "../auth/firebase";
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSignUp = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert("Error", "All fields are required!");
-      return;
-    }
 
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match!");
-      return;
-    }
+const collections = [
+  "AnimeSearches",
+  "HealthSearches",
+  "MovieSearches",
+  "MusicSearches",
+  "ProductSearches",
+];
+const handleSignUp = async () => {
+  if (!email || !password || !confirmPassword) {
+    Alert.alert("Error", "All fields are required!");
+    return;
+  }
 
-    setLoading(true);
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      Alert.alert("Success", "Account created successfully! 🎉");
-      navigation.navigate("LoginScreen");
-    } catch (error) {
-      Alert.alert("Error", error.message);
-    }
-    setLoading(false);
-  };
+  if (password !== confirmPassword) {
+    Alert.alert("Error", "Passwords do not match!");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userEmail = email.toLowerCase(); // Ensure case consistency
+    await setDoc(doc(firestore,"userDetail",userEmail),{name:'N/A',DOB:'N/A',email:userEmail,gender:'N/A'})
+    // Create empty docs in each collection
+    await Promise.all(
+      collections.map((col) =>
+        setDoc(doc(firestore, col, userEmail), { createdAt: new Date().toISOString() ,searchData: []})
+      )
+    );
+
+    Alert.alert("Success", "Account created successfully! 🎉");
+    navigation.navigate("LoginScreen");
+  } catch (error) {
+    Alert.alert("Error", error.message);
+  }
+  setLoading(false);
+};
+
 
   return (
     <LinearGradient colors={["#141E30", "#243B55"]} style={styles.container}>

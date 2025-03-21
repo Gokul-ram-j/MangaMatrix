@@ -12,9 +12,9 @@ export default function HomeScreen() {
   const categories = [
     { name: "Movies", screen: "Movies", icon: "film-outline" },
     { name: "Music", screen: "Music", icon: "musical-notes-outline" },
-    { name: "Health", screen: "Health", icon: "fitness-outline" },
+    // { name: "Health", screen: "Health", icon: "fitness-outline" },
     { name: "Anime", screen: "Anime", icon: "tv-outline" },
-    { name: "Products", screen: "Products", icon: "cart-outline" }
+    // { name: "Products", screen: "Products", icon: "cart-outline" }
   ];
 
   return (

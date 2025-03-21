@@ -11,6 +11,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import storeData from "../searchDataStore/storeData";
 
 const API_KEY = "9fe2c94fca3132fdaf314e87c27876b0";
 const TMDB_URL = `https://api.themoviedb.org/3/trending/movie/week?api_key=${API_KEY}`;
@@ -61,6 +62,8 @@ export default function Movies() {
   }, []);
 
   const handleSearch = async () => {
+    if(!searchText.trim()) return;
+    storeData({db:'MovieSearches',dataSearched:searchText,timeOfSearch:new Date().toISOString().slice(0, 16).replace("T", " "),action:'searched'})
     setLoading(true);
     try {
       let endpoint = searchText.trim()
@@ -140,21 +143,25 @@ export default function Movies() {
                 <View style={styles.buttonsContainer}>
                   <TouchableOpacity
                     style={styles.button}
-                    onPress={() =>
+                    onPress={() =>{
+                      storeData({db:'MovieSearches',dataSearched:item.title,timeOfSearch:new Date().toISOString().slice(0, 16).replace("T", " "),action:'searched through similar movies'})
                       navigation.navigate("MovieDetails", {
                         movieId: item.id,
                         title: item.title,
                       })
+                    }
                     }
                   >
                     <Text style={styles.buttonText}>Similar Movies</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.button}
-                    onPress={() =>
+                    onPress={() =>{
+                      storeData({db:'MovieSearches',dataSearched: item.title,timeOfSearch:new Date().toISOString().slice(0, 16).replace("T", " "),action:'Watched'})
                       navigation.navigate("WatchMovie", {
                         movieUrl: `https://www.themoviedb.org/movie/${item.id}`,
                       })
+                    }
                     }
                   >
                     <Text style={styles.buttonText}>Watch</Text>

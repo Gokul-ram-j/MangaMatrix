@@ -8,59 +8,71 @@ import {
   Image,
   ActivityIndicator,
   StyleSheet,
+  Linking,
 } from "react-native";
-import { Audio } from "expo-av";
+import storeData from "../searchDataStore/storeData";
+
+const CLIENT_ID = "cf5784fb8be542eaa91a60c0c08253d1"; // Replace with your Spotify Client ID
+const CLIENT_SECRET = "d9270c43e6b24522a5ba727361db60aa"; // Replace with your Spotify Client Secret
+const TOKEN_URL = "https://accounts.spotify.com/api/token";
 
 function Music() {
   const [searchText, setSearchText] = useState("");
   const [musicData, setMusicData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [playingTrack, setPlayingTrack] = useState(null);
-  const [sound, setSound] = useState(null);
-  const [showTrending, setShowTrending] = useState(true);
+  const [accessToken, setAccessToken] = useState(null);
+  const [showTrending, setShowTrending] = useState(true); // Tracks if we are showing trending music
 
   useEffect(() => {
-    fetchTrendingMusic();
+    fetchSpotifyToken();
   }, []);
 
-  // 🔹 Search Songs using Deezer API (Fixed)
-  const fetchMusic = async () => {
-    if (!searchText.trim()) return;
-
-    setLoading(true);
-    setShowTrending(false);
-
+  const fetchSpotifyToken = async () => {
     try {
-      const response = await fetch(
-        `https://api.deezer.com/search?q=${encodeURIComponent(searchText)}`
-      );
+      const response = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${btoa(`${CLIENT_ID}:${CLIENT_SECRET}`)}`,
+        },
+        body: "grant_type=client_credentials",
+      });
+
       const data = await response.json();
-
-      console.log("Search Response:", data); // Debugging
-
-      if (data && data.data) {
-        setMusicData(data.data);
-      } else {
-        setMusicData([]);
+      if (data.access_token) {
+        setAccessToken(data.access_token);
+        fetchTrendingMusic(data.access_token); // Fetch trending music after getting the token
       }
     } catch (error) {
-      console.error("Error fetching music:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching token:", error);
     }
   };
 
-  // 🔹 Fetch Trending Songs (Deezer Top Charts)
-  const fetchTrendingMusic = async () => {
+  // 🔹 Fetch Trending Songs
+  const fetchTrendingMusic = async (token = accessToken) => {
+    if (!token) return;
+
     setLoading(true);
-    setShowTrending(true);
+    setShowTrending(true); // Indicate we are showing trending songs
 
     try {
-      const response = await fetch("https://api.deezer.com/chart/0/tracks");
-      const data = await response.json();
+      const response = await fetch(
+        "https://api.spotify.com/v1/browse/new-releases?limit=10",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-      if (data && data.data) {
-        setMusicData(data.data);
+      const data = await response.json();
+      if (data.albums?.items?.length > 0) {
+        const tracks = data.albums.items.map((album) => ({
+          id: album.id,
+          name: album.name,
+          artist: album.artists[0]?.name || "Unknown Artist",
+          external_urls: { spotify: album.external_urls?.spotify || "" },
+          album: { images: album.images },
+        }));
+        setMusicData(tracks);
       } else {
         setMusicData([]);
       }
@@ -71,35 +83,49 @@ function Music() {
     }
   };
 
-  // 🔹 Play or Pause Music
-  const handlePlayPause = async (track) => {
-    if (!track.preview) {
-      console.warn("No preview available for this track.");
+  const fetchMusic = async () => {
+    if (!searchText.trim()) {
+      setShowTrending(true);
+      fetchTrendingMusic();
       return;
     }
+    storeData({db:'MusicSearches',dataSearched:searchText,timeOfSearch:new Date().toISOString().slice(0, 16).replace("T", " "),action:'searched'})
+    if (!accessToken) return;
 
-    if (playingTrack === track.id) {
-      await sound.stopAsync();
-      setPlayingTrack(null);
-      return;
+    setLoading(true);
+    setShowTrending(false); // Hide trending songs when searching
+
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(
+          searchText
+        )}&type=track&limit=10`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      const data = await response.json();
+      setMusicData(data.tracks?.items || []);
+    } catch (error) {
+      console.error("Error fetching music:", error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (sound) {
-      await sound.unloadAsync();
-    }
+  // 🔹 Open track in Spotify
+  const openInSpotify = (track) => {
+    const spotifyUrl = track.external_urls?.spotify;
+    const searchFallback = `https://open.spotify.com/search/${encodeURIComponent(track.name)}`;
 
-    const { sound: newSound } = await Audio.Sound.createAsync(
-      { uri: track.preview },
-      { shouldPlay: true }
+    Linking.openURL(spotifyUrl || searchFallback).catch((err) =>
+      console.error("Failed to open URL:", err)
     );
-
-    setSound(newSound);
-    setPlayingTrack(track.id);
   };
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
@@ -109,44 +135,34 @@ function Music() {
           onChangeText={setSearchText}
         />
         <TouchableOpacity style={styles.searchButton} onPress={fetchMusic}>
-          <Text style={styles.buttonText}>Search</Text>
+          <Text style={styles.buttonText}>🔍 Search</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Loading Indicator */}
-      {loading && <ActivityIndicator size="large" color="#FF6F61" />}
+      {loading && <ActivityIndicator size="large" color="#1DB954" />}
 
-      {/* Show "No Results" if no music found */}
-      {!loading && musicData.length === 0 && !showTrending && (
-        <Text style={styles.noResultsText}>No results found! 🎵</Text>
-      )}
+      {showTrending && <Text style={styles.trendingTitle}>🔥 Trending Songs</Text>}
 
-      {/* Title for Trending Songs */}
-      {showTrending && (
-        <Text style={styles.trendingTitle}>🔥 Trending Songs</Text>
-      )}
-
-      {/* Music List */}
       <FlatList
         data={musicData}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View style={styles.musicItem}>
             <Image
-              source={{ uri: item.album.cover_medium }}
+              source={{ uri: item.album.images[0]?.url }}
               style={styles.thumbnail}
             />
             <View style={styles.details}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.artist}>🎤 {item.artist.name}</Text>
+              <Text style={styles.title}>{item.name}</Text>
+              <Text style={styles.artist}>🎤 {item.artist}</Text>
             </View>
             <TouchableOpacity
-              style={styles.button}
-              onPress={() => handlePlayPause(item)}
+              style={styles.playButton}
+              onPress={() =>{ 
+                storeData({db:'MusicSearches',dataSearched:searchText,timeOfSearch:new Date().toISOString().slice(0, 16).replace("T", " "),action:'Played'})
+                openInSpotify(item)}}
             >
-              <Text style={styles.buttonText}>
-                {playingTrack === item.id ? "⏸ Pause" : "▶ Play"}
-              </Text>
+              <Text style={styles.buttonText}>🎵 Play</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -155,68 +171,53 @@ function Music() {
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 50,
+    paddingTop:50,
     flex: 1,
-    backgroundColor: "#222",
+    backgroundColor: "#1a1a1a",
     padding: 10,
   },
   searchContainer: {
     flexDirection: "row",
-    marginBottom: 10,
-    alignItems: "center",
-    marginTop: 20,
+    marginBottom: 15,
   },
   searchInput: {
     flex: 1,
     backgroundColor: "#333",
-    padding: 10,
-    borderRadius: 5,
+    padding: 12,
+    borderRadius: 10,
     color: "#fff",
   },
   searchButton: {
-    backgroundColor: "#FF6F61",
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 5,
+    backgroundColor: "#1DB954",
+    padding: 12,
+    borderRadius: 10,
     marginLeft: 10,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
   },
   trendingTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#FF6F61",
+    color: "#1DB954",
     textAlign: "center",
     marginBottom: 10,
-  },
-  noResultsText: {
-    color: "#FFD700",
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 20,
   },
   musicItem: {
     flexDirection: "row",
-    backgroundColor: "#333",
-    borderRadius: 10,
-    marginBottom: 10,
-    padding: 10,
     alignItems: "center",
+    backgroundColor: "#222",
+    padding: 12,
+    marginVertical: 6,
+    borderRadius: 12,
   },
   thumbnail: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     borderRadius: 8,
+    marginRight: 12,
   },
   details: {
     flex: 1,
-    marginLeft: 10,
   },
   title: {
     fontSize: 16,
@@ -225,14 +226,19 @@ const styles = StyleSheet.create({
   },
   artist: {
     fontSize: 14,
-    color: "#FFD700",
-    marginTop: 5,
+    color: "#bbb",
+    marginTop: 2,
   },
-  button: {
-    backgroundColor: "#FF6F61",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 5,
+  playButton: {
+    backgroundColor: "#1DB954",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#fff",
   },
 });
 

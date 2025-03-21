@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "MangaMatrix",
-    "slug": "MangaMatrix",
+    "name": "FusionFeed",
+    "slug": "fusionfeed",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/appIcon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
