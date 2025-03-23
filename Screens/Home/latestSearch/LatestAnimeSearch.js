@@ -8,7 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { firestore } from "../../auth/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 export default function LatestAnimeSearch() {
@@ -21,7 +21,7 @@ export default function LatestAnimeSearch() {
 
   useEffect(() => {
     // Get logged-in user's email
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserEmail(user.email);
       } else {
@@ -29,58 +29,54 @@ export default function LatestAnimeSearch() {
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {
     if (!userEmail) return;
 
-    const fetchLatestAnime = async () => {
-      try {
-        const docRef = doc(firestore, "AnimeSearches", userEmail);
-        const docSnap = await getDoc(docRef);
+    // Real-time listener for latest searched anime
+    const docRef = doc(firestore, "AnimeSearches", userEmail);
+    const unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const searchedData = docSnap.data().searchedData || [];
+        const lastAnime =
+          searchedData.length > 0 ? searchedData[searchedData.length - 1].dataSearched : null;
 
-        if (docSnap.exists()) {
-          const searchedData = docSnap.data().searchedData || [];
-          const lastAnime =
-            searchedData.length > 0 ? searchedData[searchedData.length - 1].dataSearched : null;
-
-          if (lastAnime) {
-            setLatestAnime(lastAnime);
-            fetchSimilarAnime(lastAnime);
-          } else {
-            setLoading(false);
-          }
-        }
-      } catch (error) {
-        console.error("❌ Error fetching latest anime:", error);
-        setLoading(false);
-      }
-    };
-
-    const fetchSimilarAnime = async (animeTitle) => {
-      try {
-        setLoading(true);
-        const formattedTitle = encodeURIComponent(animeTitle.trim());
-
-        const response = await fetch(`https://api.jikan.moe/v4/anime?q=${formattedTitle}&limit=10`);
-        const data = await response.json();
-
-        if (data.data && data.data.length > 0) {
-          setSimilarAnime(data.data);
+        if (lastAnime) {
+          setLatestAnime(lastAnime);
+          fetchSimilarAnime(lastAnime);
         } else {
-          console.warn("⚠️ No similar anime found for:", animeTitle);
-          setSimilarAnime([]);
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("❌ Error fetching similar anime:", error);
-      } finally {
+      } else {
         setLoading(false);
       }
-    };
+    });
 
-    fetchLatestAnime();
+    return () => unsubscribeSnapshot(); // Cleanup listener
   }, [userEmail]);
+
+  const fetchSimilarAnime = async (animeTitle) => {
+    try {
+      setLoading(true);
+      const formattedTitle = encodeURIComponent(animeTitle.trim());
+
+      const response = await fetch(`https://api.jikan.moe/v4/anime?q=${formattedTitle}&limit=10`);
+      const data = await response.json();
+
+      if (data.data && data.data.length > 0) {
+        setSimilarAnime(data.data);
+      } else {
+        console.warn("⚠️ No similar anime found for:", animeTitle);
+        setSimilarAnime([]);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching similar anime:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -128,31 +124,43 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
     color: "#FF5733",
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 15,
   },
   animeTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 15,
+    color: "#333",
   },
   animeCard: {
-    marginRight: 10,
-    width: 120,
+    margin: 15,
+    width: 160, // Increased width for better spacing
     alignItems: "center",
+    backgroundColor: "#FFF",
+    padding: 10,
+    borderRadius: 12, // Rounded corners for a modern look
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 5, // Adds shadow effect for Android
   },
   animeImage: {
-    width: 100,
-    height: 150,
-    borderRadius: 8,
+    width: 140, // Increased image width
+    height: 200, // Increased image height
+    borderRadius: 10,
+    resizeMode: "cover", // Ensures the image is properly scaled
   },
   animeName: {
-    fontSize: 14,
+    fontSize: 16,
     textAlign: "center",
-    marginTop: 5,
+    fontWeight: "bold",
+    marginTop: 8,
+    color: "#333",
   },
   errorText: {
     fontSize: 16,

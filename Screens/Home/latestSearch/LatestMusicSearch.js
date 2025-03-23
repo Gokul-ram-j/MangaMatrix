@@ -10,7 +10,7 @@ import {
   Linking,
 } from "react-native";
 import { firestore } from "../../auth/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 const CLIENT_ID = "cf5784fb8be542eaa91a60c0c08253d1";
@@ -36,29 +36,23 @@ export default function LatestMusicSearch() {
   useEffect(() => {
     if (!userEmail) return;
 
-    const fetchLatestMusic = async () => {
-      try {
-        const docRef = doc(firestore, "MusicSearches", userEmail);
-        const docSnap = await getDoc(docRef);
+    const docRef = doc(firestore, "MusicSearches", userEmail);
 
-        if (docSnap.exists()) {
-          const searchedData = docSnap.data().searchedData || [];
-          const lastMusic =
-            searchedData.length > 0 ? searchedData[searchedData.length - 1].dataSearched : null;
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const searchedData = docSnap.data().searchedData || [];
+        const lastMusic =
+          searchedData.length > 0 ? searchedData[searchedData.length - 1].dataSearched : null;
 
-          if (lastMusic) {
-            setLatestMusic(lastMusic);
-            fetchSpotifyToken(lastMusic);
-          }
+        if (lastMusic) {
+          setLatestMusic(lastMusic);
+          fetchSpotifyToken(lastMusic);
         }
-      } catch (error) {
-        console.error("Error fetching latest music:", error);
-      } finally {
-        setLoading(false);
       }
-    };
+      setLoading(false);
+    });
 
-    fetchLatestMusic();
+    return () => unsubscribe();
   }, [userEmail]);
 
   const fetchSpotifyToken = async (musicTitle) => {
@@ -103,13 +97,13 @@ export default function LatestMusicSearch() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Latest Searched Music</Text>
+      <Text style={styles.header}>🎵 Latest Searched Music</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color="#1DB954" />
       ) : userEmail ? (
         <>
-          <Text style={styles.musicTitle}>Recent Search : {latestMusic || "No recent searches"}</Text>
+          <Text style={styles.musicTitle}>Recent Search: {latestMusic || "No recent searches"}</Text>
 
           {similarTracks.length > 0 && (
             <FlatList
@@ -126,7 +120,7 @@ export default function LatestMusicSearch() {
                     style={styles.playButton}
                     onPress={() => playTrack(item.external_urls.spotify)}
                   >
-                    <Text style={styles.playButtonText}>Play</Text>
+                    <Text style={styles.playButtonText}>▶ Play</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -145,52 +139,64 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     flex: 1,
+    backgroundColor: "#F5F5F5",
   },
   header: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
-    color: "black",
-    marginBottom: 10,
+    color: "#1DB954",
+    marginBottom: 15,
+    textAlign: "center",
   },
   musicTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
-    color: "black",
+    color: "#333",
     marginBottom: 15,
+    textAlign: "center",
   },
   musicCard: {
-    marginRight: 10,
-    width: 120,
+    margin: 5,
+    width: 180, // Wider box
     alignItems: "center",
+    backgroundColor: "#FFF",
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 5,
   },
   musicImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
+    width: 160, // Larger image
+    height: 160,
+    borderRadius: 12,
   },
   musicName: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: "bold",
     textAlign: "center",
-    color: "black",
-    marginTop: 5,
+    color: "#333",
+    marginTop: 8,
   },
   artistName: {
-    fontSize: 12,
-    color: "black",
+    fontSize: 14,
+    color: "#666",
     textAlign: "center",
     fontStyle: "italic",
   },
   playButton: {
-    marginTop: 5,
+    marginTop: 10,
     backgroundColor: "#1DB954",
-    paddingVertical: 5,
-    paddingHorizontal: 15,
-    borderRadius: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
   },
   playButtonText: {
     color: "white",
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 16,
   },
   errorText: {
     fontSize: 16,
